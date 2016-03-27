@@ -1,0 +1,88 @@
+// Plans:
+// 1. Andreas and Jason: learn about variational inference in webppl
+// 2. Jason: Experiment with code below and turn it into something that actually runs
+
+var N = 11;
+
+var mean = function(erp) {
+  return expectation(erp, function(x){ return x; });
+};
+
+var slowBinomial = function(p) {
+  return Enumerate(function(){
+    var xs = repeat(N, function(){ return flip(p); });
+    return sum(xs);
+  });
+};
+
+// this is the function we want to speed up by caching
+var slowBinomialMean = function(p) {
+  return mean(slowBinomial(p));
+};
+
+var inferBinomialP = function() {
+  var p = uniform(0, 1);
+  var m = slowBinomialMean(p);
+  condition(m < 3);  // we know that the mean is < 3
+  return p;
+};
+
+
+
+
+// versions:
+// 1. plain cache (just store in db; look up)
+// 2. naive similarity cache (look up closest value in db; if distance below threshold return, otherwise re-eval)
+
+
+// 3. principled inference version
+
+var distOnFuncs = MCMC(function(){
+  var bias = uniform(-5, 5);
+  var theta = uniform(-5, 5);
+  return function(x) {
+    var y = x * theta + bias;
+    return gaussian(y, .1);
+  };
+});
+
+
+var updateDistOnFuncs = function(input, output) {
+  var newDist = Variational(function(){  // impossible!
+    var f = sample(distOnFuncs);
+    condition(f(input) == output);
+    return f;
+  });
+};
+
+
+var surrogate = function(func, arg) {
+
+  var distOnReturnVals = Marginal(
+    function() {
+      var f = sample(distOnFuncs);
+      return f(arg);
+    });
+
+  var returnValMean = mean(distOnReturnVals);
+  var returnValVariance = variance(distOnReturnVals);
+
+  if (returnValVariance > threshold) {
+    var trueReturnVal = func(arg);
+    updateDistOnFuncs(arg, trueReturnVal);
+    return trueReturnVal;
+  } else {
+    return returnValMean;
+  }
+  
+}
+
+/**
+// cache : func -> cachedFunc
+
+var cachedBinomialMean = parameterizedCache(
+  slowBinomialMean,  // function to cache
+  function(func, arg) { .. }  // surrogate function; func = slowBinomialMean; arg = p; same return type as slowBinomialMean
+); */
+
+Rejection(inferBinomialP, 30).print();
