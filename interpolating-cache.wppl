@@ -37,7 +37,7 @@ var inferBinomialP = function() {
 
 // 3. principled inference version
 
-var distOnFuncs = MCMC(function(){
+globalStore.distOnFuncs = MCMC(function(){
   var bias = uniform(-5, 5);
   var theta = uniform(-5, 5);
   return function(x) {
@@ -48,7 +48,7 @@ var distOnFuncs = MCMC(function(){
 
 
 var updateDistOnFuncs = function(input, output) {
-  var newDist = Variational(function(){  // impossible!
+  globalStore.distOnFuncs = Variational(function() {
     var f = sample(distOnFuncs);
     condition(f(input) == output);
     return f;
