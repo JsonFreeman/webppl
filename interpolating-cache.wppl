@@ -3,6 +3,7 @@
 // 2. Jason: Experiment with code below and turn it into something that actually runs
 
 var N = 11;
+var threshold = 0.05;
 
 var mean = function(erp) {
   return expectation(erp, function(x){ return x; });
@@ -19,15 +20,6 @@ var slowBinomial = function(p) {
 var slowBinomialMean = function(p) {
   return mean(slowBinomial(p));
 };
-
-var inferBinomialP = function() {
-  var p = uniform(0, 1);
-  var m = slowBinomialMean(p);
-  condition(m < 3);  // we know that the mean is < 3
-  return p;
-};
-
-
 
 
 // versions:
@@ -49,18 +41,22 @@ globalStore.distOnFuncs = MCMC(function(){
 
 var updateDistOnFuncs = function(input, output) {
   globalStore.distOnFuncs = Variational(function() {
-    var f = sample(distOnFuncs);
+    var f = sample(globalStore.distOnFuncs);
     condition(f(input) == output);
     return f;
   });
 };
 
+var variance = function(erp) {
+  var m = mean(erp);
+  return expectation(erp, function(x) { Math.pow(x - m, 2); });
+}
 
 var surrogate = function(func, arg) {
 
-  var distOnReturnVals = Marginal(
+  var distOnReturnVals = MCMC(
     function() {
-      var f = sample(distOnFuncs);
+      var f = sample(globalStore.distOnFuncs);
       return f(arg);
     });
 
@@ -77,12 +73,22 @@ var surrogate = function(func, arg) {
   
 }
 
-/**
+
 // cache : func -> cachedFunc
 
-var cachedBinomialMean = parameterizedCache(
-  slowBinomialMean,  // function to cache
-  function(func, arg) { .. }  // surrogate function; func = slowBinomialMean; arg = p; same return type as slowBinomialMean
-); */
+var makeCachedFunction = function (func, surrogateFunc) {
+    return function (arg) {
+        return surrogateFunc(func, arg);
+    };
+}
+
+var cachedBinomialMean = makeCachedFunction(slowBinomialMean, surrogate);
+
+var inferBinomialP = function() {
+  var p = uniform(0, 1);
+  var m = cachedBinomialMean(p);
+  condition(m < 3);  // we know that the mean is < 3
+  return p;
+};
 
 Rejection(inferBinomialP, 30).print();
