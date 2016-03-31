@@ -3,7 +3,7 @@
 // 2. Jason: Experiment with code below and turn it into something that actually runs
 
 var N = 11;
-var threshold = 0.05;
+var threshold = 0.03;
 
 var mean = function(erp) {
   return expectation(erp, function(x){ return x; });
@@ -49,7 +49,7 @@ var updateDistOnFuncs = function(input, output) {
 
 var variance = function(erp) {
   var m = mean(erp);
-  return expectation(erp, function(x) { Math.pow(x - m, 2); });
+  return expectation(erp, function(x) { return Math.pow(x - m, 2); });
 }
 
 var surrogate = function(func, arg) {
@@ -84,11 +84,20 @@ var makeCachedFunction = function (func, surrogateFunc) {
 
 var cachedBinomialMean = makeCachedFunction(slowBinomialMean, surrogate);
 
-var inferBinomialP = function() {
+var inferBinomialP = function(meanFunc) {
   var p = uniform(0, 1);
-  var m = cachedBinomialMean(p);
+  var m = meanFunc(p);
   condition(m < 3);  // we know that the mean is < 3
   return p;
 };
 
-Rejection(inferBinomialP, 30).print();
+var slowBinomialPDist = Rejection(function() { return inferBinomialP(slowBinomialMean); }, 30);
+var cachedBinomialPDist = Rejection(function() { return inferBinomialP(cachedBinomialMean); }, 30);
+
+console.log("Slow mean p: " + mean(slowBinomialPDist));
+console.log("Cached mean p: " + mean(cachedBinomialPDist));
+
+console.log("Slow p:");
+slowBinomialPDist.print();
+console.log("Cached p:");
+cachedBinomialPDist.print();
